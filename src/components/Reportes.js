@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { toast } from 'react-toastify';
 
 const GUINDA_IPN = '#750946';
 
@@ -9,7 +10,6 @@ const Reportes = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   
-  // --- ESTADOS PARA LA VENTANA MODAL DE RECHAZO ---
   const [showModal, setShowModal] = useState(false);
   const [motivoRechazo, setMotivoRechazo] = useState('');
   const [reporteARechazar, setReporteARechazar] = useState(null);
@@ -41,7 +41,13 @@ const Reportes = () => {
 
   const handleSubir = async (e) => {
     e.preventDefault();
-    if (!archivo) return alert("Selecciona un archivo PDF primero.");
+    if (!archivo) return toast.warning("Selecciona un archivo PDF primero.");
+    
+    // VALIDACIÓN DE PESO (Máximo 5MB)
+    const MAX_FILE_SIZE = 5 * 1024 * 1024;
+    if (archivo.size > MAX_FILE_SIZE) {
+      return toast.warning("El archivo PDF es demasiado grande. Máximo 5MB.");
+    }
 
     setIsLoading(true);
     const formData = new FormData();
@@ -58,21 +64,20 @@ const Reportes = () => {
       const data = await respuesta.json();
 
       if (respuesta.ok && data.success) {
-        alert(data.message);
+        toast.success(data.message);
         setArchivo(null);
         e.target.reset();
         cargarReportes();
       } else {
-        alert(`Error: ${data.message}`);
+        toast.error(`Error: ${data.message}`);
       }
     } catch (error) {
-      alert("Error de comunicación: El servidor no respondió.");
+      toast.error("Error de comunicación: El servidor no respondió.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // FUNCIÓN 1: Validar directamente sin Modal
   const validarReporte = async (id) => {
     try {
       const res = await fetch(`http://localhost:5000/api/reportes/${id}/estado`, {
@@ -83,25 +88,23 @@ const Reportes = () => {
       const data = await res.json();
       
       if (data.success) {
-        alert("Reporte validado exitosamente.");
+        toast.success("Reporte validado exitosamente.");
         cargarReportes(); 
       }
     } catch (error) {
-      alert("Error de red al intentar actualizar el estado.");
+      toast.error("Error de red al intentar actualizar el estado.");
     }
   };
 
-  // FUNCIÓN 2: Abrir la ventana Modal propia
   const abrirModalRechazo = (id) => {
     setReporteARechazar(id);
     setMotivoRechazo('');
     setShowModal(true);
   };
 
-  // FUNCIÓN 3: Confirmar el rechazo desde la Modal
   const confirmarRechazo = async () => {
     if (motivoRechazo.trim() === '') {
-      return alert("Debes escribir un motivo para poder rechazar el reporte.");
+      return toast.warning("Debes escribir un motivo para poder rechazar el reporte.");
     }
 
     try {
@@ -113,14 +116,14 @@ const Reportes = () => {
       const data = await res.json();
       
       if (data.success) {
-        alert("Reporte rechazado. Se notificará al prestador.");
-        setShowModal(false); // Cerramos la modal
-        cargarReportes(); // Recargamos la tabla
+        toast.success("Reporte rechazado. Se notificará al prestador.");
+        setShowModal(false); 
+        cargarReportes(); 
       } else {
-        alert("Error al actualizar el estado: " + data.message);
+        toast.error("Error al actualizar el estado: " + data.message);
       }
     } catch (error) {
-      alert("Error de red al intentar actualizar el estado.");
+      toast.error("Error de red al intentar actualizar el estado.");
     }
   };
 
@@ -131,15 +134,15 @@ const Reportes = () => {
       {errorMsg && <div style={{ color: 'red', marginBottom: '10px' }}>{errorMsg}</div>}
 
       {rolUsuario !== 'Jefe de UDI' && (
-        <div style={{ marginBottom: '40px', border: '1px solid #ccc', padding: '20px', borderRadius: '8px' }}>
+        <div style={{ marginBottom: '40px', border: '1px solid #ccc', padding: '20px', borderRadius: '8px', backgroundColor: '#fdfdfd' }}>
           <form onSubmit={handleSubir}>
             <label>Mes a reportar:</label>
-            <input type="text" value={mes} onChange={(e) => setMes(e.target.value)} style={{ display: 'block', margin: '10px 0' }} required />
+            <input type="text" value={mes} onChange={(e) => setMes(e.target.value)} style={{ display: 'block', margin: '10px 0', padding: '8px', width: '100%', boxSizing: 'border-box' }} required />
 
-            <label>Seleccionar PDF:</label>
+            <label>Seleccionar PDF (Máx. 5MB):</label>
             <input type="file" accept=".pdf" onChange={(e) => setArchivo(e.target.files[0])} style={{ display: 'block', margin: '10px 0 20px 0' }} required />
             
-            <button type="submit" disabled={isLoading} style={{ padding: '10px 20px', backgroundColor: GUINDA_IPN, color: 'white', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer' }}>
+            <button type="submit" disabled={isLoading} style={{ padding: '10px 20px', backgroundColor: GUINDA_IPN, color: 'white', border: 'none', borderRadius: '4px', cursor: isLoading ? 'not-allowed' : 'pointer' }}>
               {isLoading ? 'Subiendo...' : 'Subir Reporte'}
             </button>
           </form>
@@ -147,82 +150,80 @@ const Reportes = () => {
       )}
 
       <h4>Historial de Reportes</h4>
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '15px' }}>
-        <thead>
-          <tr style={{ backgroundColor: '#636569', color: 'white', textAlign: 'left' }}>
-            {rolUsuario === 'Jefe de UDI' && <th style={{ padding: '10px' }}>Prestador</th>}
-            <th style={{ padding: '10px' }}>Mes</th>
-            <th style={{ padding: '10px' }}>Archivo PDF</th>
-            <th style={{ padding: '10px' }}>Fecha de Subida</th>
-            <th style={{ padding: '10px', width: '25%' }}>Estado</th>
-            {rolUsuario === 'Jefe de UDI' && <th style={{ padding: '10px', textAlign: 'center' }}>Acciones</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {Array.isArray(reportesSubidos) && reportesSubidos.map((rep) => (
-            <tr key={rep.id}>
-              
-              {rolUsuario === 'Jefe de UDI' && (
-                <td style={{ border: '1px solid #ccc', padding: '10px', fontWeight: 'bold' }}>
-                  {rep.usuario_nombre}
-                </td>
-              )}
-
-              <td style={{ border: '1px solid #ccc', padding: '10px' }}>{rep.mes}</td>
-              
-              <td style={{ border: '1px solid #ccc', padding: '10px' }}>
-                <a href={`http://localhost:5000/uploads/${rep.nombre_archivo}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0066cc', textDecoration: 'none', fontWeight: 'bold' }}>
-                  📄 {rep.nombre_archivo}
-                </a>
-              </td>
-              
-              <td style={{ border: '1px solid #ccc', padding: '10px' }}>{new Date(rep.fecha_subida).toLocaleDateString()}</td>
-              
-              <td style={{ border: '1px solid #ccc', padding: '10px' }}>
-                <span style={{ fontWeight: 'bold', color: rep.estado === 'Validado' ? 'green' : rep.estado === 'Rechazado' ? '#d32f2f' : '#ff9800' }}>
-                  {rep.estado || 'En proceso de validación'} 
-                </span>
+      <div style={{ overflowX: 'auto', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#636569', color: 'white', textAlign: 'left' }}>
+              {rolUsuario === 'Jefe de UDI' && <th style={{ padding: '12px' }}>Prestador</th>}
+              <th style={{ padding: '12px' }}>Mes</th>
+              <th style={{ padding: '12px' }}>Archivo PDF</th>
+              <th style={{ padding: '12px' }}>Fecha de Subida</th>
+              <th style={{ padding: '12px', width: '25%' }}>Estado</th>
+              {rolUsuario === 'Jefe de UDI' && <th style={{ padding: '12px', textAlign: 'center' }}>Acciones</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.isArray(reportesSubidos) && reportesSubidos.map((rep) => (
+              <tr key={rep.id} style={{ borderBottom: '1px solid #eee' }}>
                 
-                {rep.estado === 'Rechazado' && rep.comentario_jefe && (
-                  <div style={{ marginTop: '8px', fontSize: '0.85rem', color: '#555', backgroundColor: '#ffeaea', padding: '5px', borderRadius: '4px', borderLeft: '3px solid #d32f2f' }}>
-                    <strong>Motivo:</strong> {rep.comentario_jefe}
-                  </div>
+                {rolUsuario === 'Jefe de UDI' && (
+                  <td style={{ padding: '12px', fontWeight: 'bold' }}>{rep.usuario_nombre}</td>
                 )}
-              </td>
 
-              {rolUsuario === 'Jefe de UDI' && (
-                <td style={{ border: '1px solid #ccc', padding: '10px', textAlign: 'center' }}>
-                  {/* MAGIA AQUÍ: Condicionales anidadas para cambiar los botones por texto si ya fue procesado */}
-                  {rep.estado === 'En proceso de validación' ? (
-                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                      <button onClick={() => validarReporte(rep.id)} style={{ backgroundColor: '#4CAF50', color: 'white', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.9rem' }}>
-                        ✓
-                      </button>
-                      <button onClick={() => abrirModalRechazo(rep.id)} style={{ backgroundColor: '#f44336', color: 'white', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.9rem' }} title="Rechazar y comentar">
-                        ✗
-                      </button>
+                <td style={{ padding: '12px' }}>{rep.mes}</td>
+                
+                <td style={{ padding: '12px' }}>
+                  <a href={`http://localhost:5000/uploads/${rep.nombre_archivo}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0066cc', textDecoration: 'none', fontWeight: 'bold' }}>
+                    📄 Ver Archivo
+                  </a>
+                </td>
+                
+                <td style={{ padding: '12px' }}>{new Date(rep.fecha_subida).toLocaleDateString()}</td>
+                
+                <td style={{ padding: '12px' }}>
+                  <span style={{ fontWeight: 'bold', color: rep.estado === 'Validado' ? 'green' : rep.estado === 'Rechazado' ? '#d32f2f' : '#ff9800' }}>
+                    {rep.estado || 'En proceso de validación'} 
+                  </span>
+                  
+                  {rep.estado === 'Rechazado' && rep.comentario_jefe && (
+                    <div style={{ marginTop: '8px', fontSize: '0.85rem', color: '#555', backgroundColor: '#ffeaea', padding: '5px', borderRadius: '4px', borderLeft: '3px solid #d32f2f' }}>
+                      <strong>Motivo:</strong> {rep.comentario_jefe}
                     </div>
-                  ) : rep.estado === 'Validado' ? (
-                    <span style={{ color: 'green', fontWeight: 'bold' }}>Aprobado</span>
-                  ) : (
-                    <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>Rechazado</span>
                   )}
                 </td>
-              )}
-            </tr>
-          ))}
-          
-          {reportesSubidos.length === 0 && (
-            <tr>
-              <td colSpan={rolUsuario === 'Jefe de UDI' ? "6" : "4"} style={{ textAlign: 'center', padding: '20px', border: '1px solid #ccc' }}>
-                No hay reportes registrados.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
 
-      {/* --- DISEÑO DE NUESTRA VENTANA MODAL PROPIA --- */}
+                {rolUsuario === 'Jefe de UDI' && (
+                  <td style={{ padding: '12px', textAlign: 'center' }}>
+                    {rep.estado === 'En proceso de validación' ? (
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                        <button onClick={() => validarReporte(rep.id)} style={{ backgroundColor: '#4CAF50', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                          ✓
+                        </button>
+                        <button onClick={() => abrirModalRechazo(rep.id)} style={{ backgroundColor: '#f44336', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.9rem' }} title="Rechazar y comentar">
+                          ✗
+                        </button>
+                      </div>
+                    ) : rep.estado === 'Validado' ? (
+                      <span style={{ color: 'green', fontWeight: 'bold' }}>Aprobado</span>
+                    ) : (
+                      <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>Rechazado</span>
+                    )}
+                  </td>
+                )}
+              </tr>
+            ))}
+            
+            {reportesSubidos.length === 0 && (
+              <tr>
+                <td colSpan={rolUsuario === 'Jefe de UDI' ? "6" : "4"} style={{ textAlign: 'center', padding: '20px' }}>
+                  No hay reportes registrados.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
       {showModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '8px', width: '400px', boxShadow: '0 4px 8px rgba(0,0,0,0.2)' }}>
@@ -248,7 +249,6 @@ const Reportes = () => {
           </div>
         </div>
       )}
-      {/* ----------------------------------------------- */}
 
     </div>
   );

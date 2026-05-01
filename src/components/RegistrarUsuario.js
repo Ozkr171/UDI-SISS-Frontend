@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { toast } from 'react-toastify';
 
 const GUINDA_IPN = '#750946';
 
@@ -22,14 +23,14 @@ const RegistrarUsuario = () => {
       const data = await respuesta.json();
 
       if (data.success) {
-        alert('Usuario registrado con éxito en la Base de Datos: ' + formData.nombre);
+        toast.success('Usuario registrado con éxito en la Base de Datos: ' + formData.nombre);
         // Limpiamos el formulario
         setFormData({ nombre: '', correo: '', password: '', boleta: '', fechaNacimiento: '', horario: '' });
       } else {
-        alert('Error: ' + data.message);
+        toast.error('Error: ' + data.message);
       }
     } catch (error) {
-      alert('Error de conexión con el servidor.');
+      toast.error('Error de conexión con el servidor.');
     }
   };
 

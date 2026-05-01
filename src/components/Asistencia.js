@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { toast } from 'react-toastify';
 
 const GUINDA_IPN = '#750946';
 
@@ -6,7 +7,6 @@ const Asistencia = () => {
   const nombreUsuario = localStorage.getItem('userName');
   const rolUsuario = localStorage.getItem('userRole');
 
-  // Estado para la fecha que está viendo el Jefe (por defecto, HOY)
   const hoy = new Date().toISOString().split('T')[0];
   const [fechaSeleccionada, setFechaSeleccionada] = useState(hoy);
   
@@ -17,7 +17,6 @@ const Asistencia = () => {
   const cargarDatos = useCallback(async () => {
     setIsLoading(true);
     try {
-      // El jefe pide los datos del día seleccionado, el prestador pide su historial completo
       const url = rolUsuario === 'Jefe de UDI' 
         ? `http://localhost:5000/api/asistencia/dia/${fechaSeleccionada}` 
         : `http://localhost:5000/api/asistencia/historial/${nombreUsuario}`;
@@ -37,7 +36,6 @@ const Asistencia = () => {
     cargarDatos();
   }, [cargarDatos]);
 
-  // Función matemática para calcular diferencia de horas
   const calcularHoras = (entrada, salida) => {
     if (!entrada || !salida) return '--';
     
@@ -48,16 +46,14 @@ const Asistencia = () => {
     let minS = hS * 60 + mS;
     let diff = minS - minE;
     
-    if (diff < 0) return 'Error'; // Por si salen antes de entrar (error humano)
+    if (diff < 0) return 'Error'; 
     
     const horas = Math.floor(diff / 60);
     const mins = diff % 60;
     return `${horas}h ${mins}m`;
   };
 
-  // Acción del Jefe para registrar botones
   const marcarAsistencia = async (nombrePrestador, tipoAccion) => {
-    // Tomamos la hora actual exacta del sistema del Jefe
     const horaActual = new Date().toLocaleTimeString('en-GB', { hour12: false }); 
 
     try {
@@ -74,24 +70,21 @@ const Asistencia = () => {
       const data = await res.json();
       
       if (data.success) {
-        cargarDatos(); // Recargamos para ver los cambios instantáneamente
+        toast.success(`Asistencia (${tipoAccion}) registrada para ${nombrePrestador}`);
+        cargarDatos(); 
       } else {
-        alert("Error al registrar la asistencia.");
+        toast.error("Error al registrar la asistencia.");
       }
     } catch (error) {
-      alert("Error de red.");
+      toast.error("Error de red.");
     }
   };
 
-  // ==========================================
-  // VISTA DEL JEFE DE UDI
-  // ==========================================
   if (rolUsuario === 'Jefe de UDI') {
     return (
       <div style={{ textAlign: 'left' }}>
         <h3 style={{ color: GUINDA_IPN }}>Control Diario de Asistencia</h3>
         
-        {/* Control para cambiar de día */}
         <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '8px', border: '1px solid #ddd', display: 'flex', alignItems: 'center', gap: '15px' }}>
           <label style={{ fontWeight: 'bold' }}>📅 Viendo registros del día:</label>
           <input 
@@ -105,118 +98,110 @@ const Asistencia = () => {
 
         {errorMsg && <div style={{ color: 'red', marginBottom: '10px' }}>{errorMsg}</div>}
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#636569', color: 'white', textAlign: 'left' }}>
-              <th style={{ padding: '10px' }}>Prestador</th>
-              <th style={{ padding: '10px', textAlign: 'center' }}>Entrada</th>
-              <th style={{ padding: '10px', textAlign: 'center' }}>Salida</th>
-              <th style={{ padding: '10px', textAlign: 'center' }}>Total Horas</th>
-            </tr>
-          </thead>
-          <tbody>
-            {registros.length > 0 ? (
-              registros.map((reg, index) => (
-                <tr key={index} style={{ borderBottom: '1px solid #ccc', backgroundColor: reg.estado === 'Falta' ? '#ffeaea' : 'transparent' }}>
-                  
-                  <td style={{ padding: '10px', fontWeight: 'bold' }}>{reg.usuario_nombre}</td>
-                  
-                  {/* Celda de Entrada */}
-                  <td style={{ padding: '10px', textAlign: 'center' }}>
-                    {reg.estado === 'Falta' ? (
-                      <span style={{ color: 'red' }}>Falta</span>
-                    ) : reg.hora_entrada ? (
-                      <span style={{ color: 'green', fontWeight: 'bold' }}>{reg.hora_entrada}</span>
-                    ) : (
-                      <button onClick={() => marcarAsistencia(reg.usuario_nombre, 'Entrada')} style={{ backgroundColor: '#4CAF50', color: 'white', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer' }}>
-                        Marcar Entrada
-                      </button>
-                    )}
-                  </td>
-
-                  {/* Celda de Salida */}
-                  <td style={{ padding: '10px', textAlign: 'center' }}>
-                    {reg.estado === 'Falta' ? (
-                      <span style={{ color: 'red' }}>Falta</span>
-                    ) : reg.hora_salida ? (
-                      <span style={{ color: '#0055a4', fontWeight: 'bold' }}>{reg.hora_salida}</span>
-                    ) : (
-                      <button 
-                        onClick={() => marcarAsistencia(reg.usuario_nombre, 'Salida')} 
-                        disabled={!reg.hora_entrada} // No puede salir si no ha entrado
-                        style={{ backgroundColor: reg.hora_entrada ? '#f44336' : '#ccc', color: 'white', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: reg.hora_entrada ? 'pointer' : 'not-allowed' }}
-                      >
-                        Marcar Salida
-                      </button>
-                    )}
-                  </td>
-
-                  {/* Celda de Horas Totales / Inasistencia */}
-                  <td style={{ padding: '10px', textAlign: 'center', fontWeight: 'bold' }}>
-                    {reg.estado === 'Falta' ? (
-                      <span style={{ color: 'red' }}>Inasistencia</span>
-                    ) : (
-                      calcularHoras(reg.hora_entrada, reg.hora_salida)
-                    )}
-                  </td>
-
-                </tr>
-              ))
-            ) : (
-              <tr><td colSpan="4" style={{ textAlign: 'center', padding: '20px' }}>No hay prestadores registrados en el sistema.</td></tr>
-            )}
-          </tbody>
-        </table>
+        <div style={{ overflowX: 'auto', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#636569', color: 'white', textAlign: 'left' }}>
+                <th style={{ padding: '12px' }}>Prestador</th>
+                <th style={{ padding: '12px', textAlign: 'center' }}>Entrada</th>
+                <th style={{ padding: '12px', textAlign: 'center' }}>Salida</th>
+                <th style={{ padding: '12px', textAlign: 'center' }}>Total Horas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {registros.length > 0 ? (
+                registros.map((reg, index) => (
+                  <tr key={index} style={{ borderBottom: '1px solid #eee', backgroundColor: reg.estado === 'Falta' ? '#ffeaea' : 'white' }}>
+                    <td style={{ padding: '12px', fontWeight: 'bold' }}>{reg.usuario_nombre}</td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
+                      {reg.estado === 'Falta' ? (
+                        <span style={{ color: 'red' }}>Falta</span>
+                      ) : reg.hora_entrada ? (
+                        <span style={{ color: 'green', fontWeight: 'bold' }}>{reg.hora_entrada}</span>
+                      ) : (
+                        <button onClick={() => marcarAsistencia(reg.usuario_nombre, 'Entrada')} style={{ backgroundColor: '#4CAF50', color: 'white', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer' }}>
+                          Marcar Entrada
+                        </button>
+                      )}
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
+                      {reg.estado === 'Falta' ? (
+                        <span style={{ color: 'red' }}>Falta</span>
+                      ) : reg.hora_salida ? (
+                        <span style={{ color: '#0055a4', fontWeight: 'bold' }}>{reg.hora_salida}</span>
+                      ) : (
+                        <button 
+                          onClick={() => marcarAsistencia(reg.usuario_nombre, 'Salida')} 
+                          disabled={!reg.hora_entrada}
+                          style={{ backgroundColor: reg.hora_entrada ? '#f44336' : '#ccc', color: 'white', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: reg.hora_entrada ? 'pointer' : 'not-allowed' }}
+                        >
+                          Marcar Salida
+                        </button>
+                      )}
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center', fontWeight: 'bold' }}>
+                      {reg.estado === 'Falta' ? (
+                        <span style={{ color: 'red' }}>Inasistencia</span>
+                      ) : (
+                        calcularHoras(reg.hora_entrada, reg.hora_salida)
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan="4" style={{ textAlign: 'center', padding: '20px', backgroundColor: 'white' }}>No hay prestadores registrados en el sistema.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   }
 
-  // ==========================================
-  // VISTA DEL PRESTADOR DE SERVICIO
-  // ==========================================
   return (
     <div style={{ textAlign: 'left' }}>
       <h3 style={{ color: GUINDA_IPN }}>Mi Historial de Asistencia</h3>
       
       {errorMsg && <div style={{ color: 'red', marginBottom: '10px' }}>{errorMsg}</div>}
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '15px' }}>
-        <thead>
-          <tr style={{ backgroundColor: '#636569', color: 'white', textAlign: 'left' }}>
-            <th style={{ padding: '10px' }}>Fecha</th>
-            <th style={{ padding: '10px', textAlign: 'center' }}>Hora Entrada</th>
-            <th style={{ padding: '10px', textAlign: 'center' }}>Hora Salida</th>
-            <th style={{ padding: '10px', textAlign: 'center' }}>Horas Hechas</th>
-          </tr>
-        </thead>
-        <tbody>
-          {registros.length > 0 ? (
-            registros.map((reg, index) => (
-              <tr key={index} style={{ borderBottom: '1px solid #ccc', backgroundColor: reg.estado === 'Falta' ? '#ffeaea' : 'transparent' }}>
-                <td style={{ padding: '10px', fontWeight: 'bold' }}>{new Date(reg.fecha + 'T00:00:00').toLocaleDateString()}</td>
-                
-                {reg.estado === 'Falta' ? (
-                  <>
-                    <td style={{ padding: '10px', textAlign: 'center', color: '#666' }}>--</td>
-                    <td style={{ padding: '10px', textAlign: 'center', color: '#666' }}>--</td>
-                    <td style={{ padding: '10px', textAlign: 'center', color: 'red', fontWeight: 'bold' }}>Inasistencia</td>
-                  </>
-                ) : (
-                  <>
-                    <td style={{ padding: '10px', textAlign: 'center', color: 'green' }}>{reg.hora_entrada || '--:--:--'}</td>
-                    <td style={{ padding: '10px', textAlign: 'center', color: '#0055a4' }}>{reg.hora_salida || 'Pendiente...'}</td>
-                    <td style={{ padding: '10px', textAlign: 'center', fontWeight: 'bold' }}>
-                      {calcularHoras(reg.hora_entrada, reg.hora_salida)}
-                    </td>
-                  </>
-                )}
-              </tr>
-            ))
-          ) : (
-            <tr><td colSpan="4" style={{ textAlign: 'center', padding: '20px' }}>No tienes registros de asistencia aún.</td></tr>
-          )}
-        </tbody>
-      </table>
+      <div style={{ overflowX: 'auto', marginTop: '15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '500px' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#636569', color: 'white', textAlign: 'left' }}>
+              <th style={{ padding: '12px' }}>Fecha</th>
+              <th style={{ padding: '12px', textAlign: 'center' }}>Hora Entrada</th>
+              <th style={{ padding: '12px', textAlign: 'center' }}>Hora Salida</th>
+              <th style={{ padding: '12px', textAlign: 'center' }}>Horas Hechas</th>
+            </tr>
+          </thead>
+          <tbody>
+            {registros.length > 0 ? (
+              registros.map((reg, index) => (
+                <tr key={index} style={{ borderBottom: '1px solid #eee', backgroundColor: reg.estado === 'Falta' ? '#ffeaea' : 'white' }}>
+                  <td style={{ padding: '12px', fontWeight: 'bold' }}>{new Date(reg.fecha + 'T00:00:00').toLocaleDateString()}</td>
+                  {reg.estado === 'Falta' ? (
+                    <>
+                      <td style={{ padding: '12px', textAlign: 'center', color: '#666' }}>--</td>
+                      <td style={{ padding: '12px', textAlign: 'center', color: '#666' }}>--</td>
+                      <td style={{ padding: '12px', textAlign: 'center', color: 'red', fontWeight: 'bold' }}>Inasistencia</td>
+                    </>
+                  ) : (
+                    <>
+                      <td style={{ padding: '12px', textAlign: 'center', color: 'green' }}>{reg.hora_entrada || '--:--:--'}</td>
+                      <td style={{ padding: '12px', textAlign: 'center', color: '#0055a4' }}>{reg.hora_salida || 'Pendiente...'}</td>
+                      <td style={{ padding: '12px', textAlign: 'center', fontWeight: 'bold' }}>
+                        {calcularHoras(reg.hora_entrada, reg.hora_salida)}
+                      </td>
+                    </>
+                  )}
+                </tr>
+              ))
+            ) : (
+              <tr><td colSpan="4" style={{ textAlign: 'center', padding: '20px', backgroundColor: 'white' }}>No tienes registros de asistencia aún.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };

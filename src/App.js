@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import Header from './components/Header'; 
 import LoginScreen from './components/LoginScreen'; 
 import Dashboard from './components/Dashboard';
 
@@ -25,19 +24,14 @@ function App() {
     localStorage.removeItem('userName');
   };
 
-  // Si ya tiene rol, le mostramos su tablero completo
+  // Si ya tiene rol, le mostramos su tablero completo (El Dashboard ya incluye su propio Header)
   if (userRole) {
     return <Dashboard role={userRole} userName={userName} onLogout={handleLogout} />;
   }
 
-  // Si no tiene rol, le mostramos el login
+  // Si no tiene rol, le mostramos ÚNICAMENTE el LoginScreen a pantalla completa
   return (
-    <div style={{ backgroundColor: '#f9f9f9', minHeight: '100vh', fontFamily: 'Montserrat, sans-serif' }}>
-      <Header />
-      <main style={{ padding: '20px' }}>
-        <LoginScreen onLoginSuccess={handleLoginSuccess} />
-      </main>
-    </div>
+    <LoginScreen onLogin={handleLoginSuccess} />
   );
 }
 
