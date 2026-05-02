@@ -12,39 +12,69 @@ import Evidencias from './Evidencias';
 import Reportes from './Reportes'; 
 import MiEstado from './MiEstado';
 import EstadoPrestadores from './EstadoPrestadores';
+import PrestamosMaterial from './PrestamosMaterial';
+import Materiales from './Materiales';
+import TrabajosEspeciales from './TrabajosEspeciales';
 
 const GUINDA_IPN = '#750946';
 
-const Dashboard = ({ role, onLogout }) => {
+const Dashboard = ({ role, userName, onLogout }) => {
   const [activeView, setActiveView] = useState(null);
   const [estadoUsuario, setEstadoUsuario] = useState('Activo'); 
+  
+  // --- NUEVO: Estado para guardar los regaños/avisos ---
+  const [notificaciones, setNotificaciones] = useState([]);
 
   // Consultamos la base de datos apenas carga el tablero
   useEffect(() => {
     if (role === 'Prestador de Servicio') {
       const nombreUsuario = localStorage.getItem('userName');
+      
+      // 1. Verificamos su estado general (Liberado, Baja, Activo)
       fetch(`http://localhost:5000/api/mi-estado/${nombreUsuario}`)
         .then(res => res.json())
         .then(data => {
           if (data && data.estado_servicio) {
             setEstadoUsuario(data.estado_servicio);
-            // Si está de baja O liberado, lo forzamos a entrar a su estado inmediatamente
             if (data.estado_servicio === 'Baja' || data.estado_servicio === 'Liberado') {
               setActiveView('Mi Estado');
             }
           }
         })
-        .catch(err => console.error("Error verificando el estado del usuario:", err));
+        .catch(err => console.error("Error verificando el estado:", err));
+
+      // 2. NUEVO: Buscamos si el Jefe le dejó una notificación de castigo
+      fetch(`http://localhost:5000/api/notificaciones/${nombreUsuario}`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data) && data.length > 0) {
+            setNotificaciones(data);
+          }
+        })
+        .catch(err => console.error("Error cargando notificaciones:", err));
     }
   }, [role]);
 
+  // --- NUEVO: Función para "Matar" la notificación ---
+  const marcarComoLeida = async (id) => {
+    try {
+      await fetch(`http://localhost:5000/api/notificaciones/${id}/leida`, { method: 'PUT' });
+      // La quitamos de la pantalla
+      setNotificaciones(prev => prev.filter(n => n.id !== id));
+    } catch (error) {
+      console.error("Error al marcar como leída:", error);
+    }
+  };
+
   const menus = {
     "Prestador de Servicio": [ 
-      "Bitácora", "Asistencia", "Evidencias", "Mi Estado", "Reportes" 
+      "Bitácora", "Asistencia", "Evidencias", "Mi Estado", "Reportes", "Préstamos",
+      "Materiales", "Trabajos Especiales"
     ],
     "Jefe de UDI": [ 
       "Prestadores", "Registrar Nuevo Usuario", "Bitácora", 
-      "Asistencia", "Evidencias", "Estado Prestadores", "Reportes" 
+      "Asistencia", "Evidencias", "Estado Prestadores", "Reportes", "Préstamos",
+      "Materiales", "Trabajos Especiales"
     ],
     "Empleado de UDI": [ 
       "Reportes", "Asistencia", "Bitácora", "Evidencias", "Mi estado"
@@ -60,13 +90,14 @@ const Dashboard = ({ role, onLogout }) => {
     "Mi estado": "📊",
     "Prestadores": "👥",
     "Registrar Nuevo Usuario": "➕",
-    "Estado Prestadores": "📈"
+    "Estado Prestadores": "📈",
+    "Préstamos": "📦",
+    "Materiales": "📂",
+    "Trabajos Especiales": "⭐"
   };
 
-  // Variable de control para saber si debemos bloquear la interfaz
   const isRestricted = estadoUsuario === 'Baja' || estadoUsuario === 'Liberado';
 
-  // Si está restringido, su menú se reduce a un solo botón
   let currentMenu = menus[role] || [];
   if (role === 'Prestador de Servicio' && isRestricted) {
     currentMenu = ["Mi Estado"];
@@ -83,14 +114,47 @@ const Dashboard = ({ role, onLogout }) => {
       case 'Mi Estado':
       case 'Mi estado': return <MiEstado />;
       case 'Estado Prestadores': return <EstadoPrestadores />;
+      case 'Préstamos': return <PrestamosMaterial />;
+      case 'Materiales': return <Materiales />;
+      case 'Trabajos Especiales': return <TrabajosEspeciales />
       default: return <p>Pantalla no encontrada o en construcción.</p>;
     }
+  };
+
+  // --- NUEVO: Renderizador del Modal de Aviso ---
+  const renderNotificaciones = () => {
+    if (notificaciones.length === 0) return null;
+    
+    // Mostramos la primera notificación pendiente (por si tiene varias)
+    const notificacionActual = notificaciones[0]; 
+    
+    return (
+      <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.75)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+        <div style={{ backgroundColor: '#fff3e0', border: '3px solid #ff9800', padding: '30px', borderRadius: '12px', width: '90%', maxWidth: '400px', textAlign: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.3)' }}>
+          <span style={{ fontSize: '3rem', display: 'block', marginBottom: '10px' }}>⚠️</span>
+          <h2 style={{ color: '#e65100', marginTop: 0 }}>Aviso de la Jefatura UDI</h2>
+          <p style={{ fontSize: '1.1rem', color: '#333', marginBottom: '25px', textAlign: 'justify', lineHeight: '1.5' }}>
+            {notificacionActual.mensaje}
+          </p>
+          <button 
+            onClick={() => marcarComoLeida(notificacionActual.id)}
+            style={{ padding: '12px 25px', backgroundColor: '#ff9800', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', width: '100%', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+          >
+            Entendido
+          </button>
+        </div>
+      </div>
+    );
   };
 
   if (activeView) {
     return (
       <div style={{ backgroundColor: '#f9f9f9', minHeight: '100vh', fontFamily: 'Montserrat, sans-serif' }}>
         <Header />
+        
+        {/* Aquí inyectamos el modal emergente para que salga incluso si está en otra vista */}
+        {renderNotificaciones()}
+
         <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -115,7 +179,6 @@ const Dashboard = ({ role, onLogout }) => {
           </div>
 
         </div>
-        {/* Contenedor de notificaciones para las vistas activas */}
         <ToastContainer position="bottom-right" autoClose={3000} theme="colored" />
       </div>
     );
@@ -124,10 +187,14 @@ const Dashboard = ({ role, onLogout }) => {
   return (
     <div style={{ backgroundColor: '#f9f9f9', minHeight: '100vh', fontFamily: 'Montserrat, sans-serif' }}>
       <Header />
+      
+      {/* Aquí también inyectamos el modal para el tablero principal */}
+      {renderNotificaciones()}
+
       <div style={{ padding: '20px', maxWidth: '900px', margin: '0 auto', textAlign: 'center' }}>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-          <h2 style={{ color: GUINDA_IPN }}>Tablero: {role}</h2>
+          <h2 style={{ color: GUINDA_IPN }}>Tablero: {role} - {userName}</h2>
           <button onClick={onLogout} style={{ padding: '8px 16px', backgroundColor: '#636569', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Cerrar Sesión</button>
         </div>
 
@@ -158,7 +225,6 @@ const Dashboard = ({ role, onLogout }) => {
           ))}
         </div>
 
-        {/* Contenedor de notificaciones para el menú principal */}
         <ToastContainer position="bottom-right" autoClose={3000} theme="colored" />
       </div>
     </div>

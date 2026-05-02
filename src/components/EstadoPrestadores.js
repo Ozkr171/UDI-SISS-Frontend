@@ -18,6 +18,11 @@ const EstadoPrestadores = () => {
   const [showModalBaja, setShowModalBaja] = useState(false);
   const [motivoBaja, setMotivoBaja] = useState('');
   const [horasASumar, setHorasASumar] = useState('');
+  
+  // --- NUEVOS: Estados Modal Sanción (Restar Horas) ---
+  const [showModalRestar, setShowModalRestar] = useState(false);
+  const [horasARestar, setHorasARestar] = useState('');
+  const [motivoRestar, setMotivoRestar] = useState('');
 
   // --- Estados Modal Cambiar Contraseña (Prestador) ---
   const [showModalPassword, setShowModalPassword] = useState(false);
@@ -96,7 +101,6 @@ const EstadoPrestadores = () => {
     setCaptchaValido(false);
   }, []);
 
-  // Generar CAPTCHA solo cuando se abre la modal
   useEffect(() => {
     if (showModalPassword) {
       setTimeout(() => generarCaptchaVisual(), 100); 
@@ -161,6 +165,37 @@ const EstadoPrestadores = () => {
     }
   };
 
+  // --- NUEVA FUNCIÓN: Restar horas ---
+  const confirmarRestarHoras = async () => {
+    const horas = parseFloat(horasARestar);
+    if (isNaN(horas) || horas <= 0) return toast.error("Ingresa una cantidad válida de horas.");
+    if (motivoRestar.trim() === '') return toast.error("Debes justificar el motivo de la sanción.");
+
+    try {
+      await fetch(`http://localhost:5000/api/usuarios/${prestadorSeleccionado.id}/restar-horas`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          horas_restadas: horas,
+          motivo: motivoRestar,
+          nombre_prestador: prestadorSeleccionado.nombre
+        })
+      });
+      toast.success("Sanción aplicada y notificación enviada.");
+      
+      setPrestadorSeleccionado({
+        ...prestadorSeleccionado,
+        horas_totales: Number(prestadorSeleccionado.horas_totales) - horas
+      });
+      setShowModalRestar(false);
+      setHorasARestar('');
+      setMotivoRestar('');
+      cargarDatos();
+    } catch (err) {
+      toast.error("Error al restar horas.");
+    }
+  };
+
   const handleCambiarPassword = async (e) => {
     e.preventDefault();
     if (!captchaValido) return toast.error("CAPTCHA incorrecto.");
@@ -214,10 +249,10 @@ const EstadoPrestadores = () => {
           })}
         </div>
 
-        {/* MODALES DEL JEFE */}
-        {prestadorSeleccionado && !showModalBaja && (
+        {/* MODAL DETALLES DEL JEFE */}
+        {prestadorSeleccionado && !showModalBaja && !showModalRestar && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-            <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '8px', width: '450px', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>
+            <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '8px', width: '500px', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>
               <h2 style={{ marginTop: 0, color: GUINDA_IPN }}>{prestadorSeleccionado.nombre}</h2>
               <p><strong>Boleta:</strong> {prestadorSeleccionado.boleta}</p>
               
@@ -226,8 +261,17 @@ const EstadoPrestadores = () => {
                   <span style={{ display: 'block', fontSize: '1.5rem', fontWeight: 'bold', color: (Number(prestadorSeleccionado.reportes_validados) || 0) >= META_REPORTES ? 'green' : '#ff9800' }}>
                     {Number(prestadorSeleccionado.reportes_validados) || 0} / {META_REPORTES}
                   </span>
-                  <span style={{ fontSize: '0.8rem', color: '#666' }}>Reportes Validados</span>
+                  <span style={{ fontSize: '0.8rem', color: '#666' }}>Docs Validados</span>
                 </div>
+                
+                {/* NUEVO INDICADOR DE ÉXITO */}
+                <div style={{ textAlign: 'center' }}>
+                  <span style={{ display: 'block', fontSize: '1.5rem', fontWeight: 'bold', color: '#2e7d32' }}>
+                    {Number(prestadorSeleccionado.reportes_exitosos) || 0}
+                  </span>
+                  <span style={{ fontSize: '0.8rem', color: '#666' }}>Problemas Resueltos</span>
+                </div>
+
                 <div style={{ textAlign: 'center' }}>
                   <span style={{ display: 'block', fontSize: '1.5rem', fontWeight: 'bold', color: (Number(prestadorSeleccionado.horas_totales) || 0) >= META_HORAS ? 'green' : '#0055a4' }}>
                     {formatoHoras(Number(prestadorSeleccionado.horas_totales) || 0)}
@@ -242,7 +286,7 @@ const EstadoPrestadores = () => {
                 </div>
               )}
 
-              {/* --- NUEVA SECCIÓN: AJUSTE MANUAL DE HORAS --- */}
+              {/* SECCIÓN: AJUSTE MANUAL DE HORAS */}
               {prestadorSeleccionado.estado_servicio === 'Activo' && (
                 <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#eef2f5', borderRadius: '8px', border: '1px solid #cdd5dc' }}>
                   <h4 style={{ margin: '0 0 10px 0', color: '#333', fontSize: '0.9rem' }}>⏱️ Ajuste Manual de Horas</h4>
@@ -260,6 +304,12 @@ const EstadoPrestadores = () => {
                       onClick={sumarHorasManuales} 
                       style={{ padding: '8px 15px', backgroundColor: '#0055a4', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
                       Sumar
+                    </button>
+                    {/* BOTÓN DE SANCIÓN */}
+                    <button 
+                      onClick={() => setShowModalRestar(true)} 
+                      style={{ padding: '8px 15px', backgroundColor: '#ff9800', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                      Restar (Sanción)
                     </button>
                   </div>
                 </div>
@@ -285,6 +335,32 @@ const EstadoPrestadores = () => {
           </div>
         )}
 
+        {/* MODAL: RESTAR HORAS (Sanción) */}
+        {showModalRestar && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1001 }}>
+            <div style={{ backgroundColor: '#fff3e0', border: '2px solid #ff9800', padding: '25px', borderRadius: '8px', width: '400px', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>
+              <h3 style={{ marginTop: 0, color: '#e65100' }}>⚠️ Sanción: Restar Horas</h3>
+              <p style={{ fontSize: '0.9rem', color: '#555' }}>Descontarás horas a <strong>{prestadorSeleccionado.nombre}</strong>. Esto le enviará una notificación automática.</p>
+              
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>Horas a restar:</label>
+                <input type="number" step="0.5" min="0" value={horasARestar} onChange={e => setHorasARestar(e.target.value)} style={{ width: '100%', padding: '8px', marginTop:'5px', boxSizing: 'border-box', border: '1px solid #ccc', borderRadius: '4px' }} placeholder="Ej. 2.5" />
+              </div>
+              
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>Motivo de la sanción:</label>
+                <textarea value={motivoRestar} onChange={e => setMotivoRestar(e.target.value)} rows="3" style={{ width: '100%', padding: '8px', marginTop:'5px', boxSizing: 'border-box', resize: 'none', border: '1px solid #ccc', borderRadius: '4px' }} placeholder="Ej. Retardo injustificado, falta de atención..." />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
+                <button onClick={() => setShowModalRestar(false)} style={{ padding: '8px 15px', backgroundColor: 'white', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={confirmarRestarHoras} style={{ padding: '8px 15px', backgroundColor: '#ff9800', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Aplicar Sanción</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: CONFIRMAR BAJA */}
         {showModalBaja && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1001 }}>
             <div style={{ backgroundColor: '#ffebee', border: '2px solid #d32f2f', padding: '25px', borderRadius: '8px', width: '400px', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>
@@ -309,10 +385,11 @@ const EstadoPrestadores = () => {
 
   const horasTotales = Number(datos.horas_totales) || 0;
   const reportesValidados = Number(datos.reportes_validados) || 0;
+  const reportesExitosos = Number(datos.reportes_exitosos) || 0;
   const porcentaje = Math.min((horasTotales / META_HORAS) * 100, 100).toFixed(1);
 
   return (
-    <div style={{ textAlign: 'left', maxWidth: '600px', margin: '0 auto', position: 'relative' }}>
+    <div style={{ textAlign: 'left', maxWidth: '700px', margin: '0 auto', position: 'relative' }}>
       <h3 style={{ color: GUINDA_IPN, textAlign: 'center' }}>Mi Estado del Servicio</h3>
       
       {/* BANNERS DE ESTATUS */}
@@ -346,19 +423,27 @@ const EstadoPrestadores = () => {
           </button>
         </div>
         
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '20px' }}>
+        {/* GRID DE INDICADORES (AQUÍ ESTÁ LA NUEVA MÉTRICA) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginTop: '20px' }}>
           <div style={{ backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
             <span style={{ fontSize: '2rem', display: 'block', fontWeight: 'bold', color: horasTotales >= META_HORAS ? 'green' : GUINDA_IPN }}>
               {formatoHoras(horasTotales)}
             </span>
-            <span style={{ fontSize: '0.9rem', color: '#666' }}>Horas Acreditadas (Meta: {META_HORAS}h)</span>
+            <span style={{ fontSize: '0.85rem', color: '#666' }}>Horas Acreditadas (Meta: {META_HORAS}h)</span>
           </div>
           
           <div style={{ backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
             <span style={{ fontSize: '2rem', display: 'block', fontWeight: 'bold', color: reportesValidados >= META_REPORTES ? 'green' : GUINDA_IPN }}>
               {reportesValidados}
             </span>
-            <span style={{ fontSize: '0.9rem', color: '#666' }}>Reportes Validados (Meta: {META_REPORTES})</span>
+            <span style={{ fontSize: '0.85rem', color: '#666' }}>Docs Validados (Meta: {META_REPORTES})</span>
+          </div>
+
+          <div style={{ backgroundColor: '#f4fae6', padding: '15px', borderRadius: '8px', textAlign: 'center', border: '1px solid #c8e6c9' }}>
+            <span style={{ fontSize: '2rem', display: 'block', fontWeight: 'bold', color: '#2e7d32' }}>
+              {reportesExitosos}
+            </span>
+            <span style={{ fontSize: '0.85rem', color: '#666' }}>Problemas Resueltos (Bitácora)</span>
           </div>
         </div>
 

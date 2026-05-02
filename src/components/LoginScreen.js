@@ -100,7 +100,7 @@ const LoginScreen = ({ onLogin }) => {
       return toast.warning("Ingresa tu correo electrónico arriba para poder enviarte una contraseña temporal.");
     }
     
-    const confirmacion = window.confirm(`¿Enviar contraseña temporal al correo ${email}?`);
+    const confirmacion = toast.success(`¿Enviar contraseña temporal al correo ${email}?`);
     if (!confirmacion) return;
 
     try {

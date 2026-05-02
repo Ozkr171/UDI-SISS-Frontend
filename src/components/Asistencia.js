@@ -53,6 +53,19 @@ const Asistencia = () => {
     return `${horas}h ${mins}m`;
   };
 
+  // --- NUEVA FUNCIÓN: Blindaje de Fechas ---
+  const formatearFecha = (fechaBD) => {
+    if (!fechaBD) return '--/--/----';
+    try {
+      // Extraemos exactamente "YYYY-MM-DD"
+      const soloFecha = fechaBD.toString().substring(0, 10);
+      const [year, month, day] = soloFecha.split('-');
+      return `${day}/${month}/${year}`;
+    } catch (e) {
+      return 'Fecha Inválida';
+    }
+  };
+
   const marcarAsistencia = async (nombrePrestador, tipoAccion) => {
     const horaActual = new Date().toLocaleTimeString('en-GB', { hour12: false }); 
 
@@ -178,7 +191,9 @@ const Asistencia = () => {
             {registros.length > 0 ? (
               registros.map((reg, index) => (
                 <tr key={index} style={{ borderBottom: '1px solid #eee', backgroundColor: reg.estado === 'Falta' ? '#ffeaea' : 'white' }}>
-                  <td style={{ padding: '12px', fontWeight: 'bold' }}>{new Date(reg.fecha + 'T00:00:00').toLocaleDateString()}</td>
+                  {/* AQUÍ APLICAMOS LA FUNCIÓN DE FORMATO */}
+                  <td style={{ padding: '12px', fontWeight: 'bold' }}>{formatearFecha(reg.fecha)}</td>
+                  
                   {reg.estado === 'Falta' ? (
                     <>
                       <td style={{ padding: '12px', textAlign: 'center', color: '#666' }}>--</td>
